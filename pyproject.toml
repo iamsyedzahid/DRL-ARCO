@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drl-arco"
+version = "0.1.0"
+description = "Adaptive packet routing and congestion optimization using deep RL in ns-3"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Syed Zahid Hussain" }, { name = "Mahad Munawar" }]
+dependencies = ["numpy>=1.24", "pyyaml>=6", "torch>=2.0", "flask>=3.0"]
+
+[project.optional-dependencies]
+ns3 = ["pyzmq>=25", "protobuf>=4.21", "grpcio-tools>=1.60"]
+dev = ["pytest>=8", "ruff>=0.5", "pyzmq>=25", "protobuf>=4.21", "grpcio-tools>=1.60"]
+
+[project.scripts]
+drl-arco = "drl_arco.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["drl_arco*"]
+
+[tool.setuptools.package-data]
+"drl_arco.gui" = ["static/*"]
+"drl_arco.envs.proto" = ["messages.proto"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["drl_arco/envs/proto/messages_pb2.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["B905"]
