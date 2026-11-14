@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DRL-ARCO Network Dashboard</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1>DRL-ARCO</h1>
+    <span class="subtitle">Adaptive routing with deep reinforcement learning</span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-view="live" role="tab">Live network</button>
+    <button class="tab" data-view="train" role="tab">Train</button>
+    <button class="tab" data-view="bench" role="tab">Benchmark</button>
+  </nav>
+  <div class="status-line">
+    <span id="backend-badge" class="pill"></span>
+    <span id="job-pill" class="pill">Idle</span>
+  </div>
+</header>
+
+<main>
+  <section id="view-live" class="view active">
+    <div class="live-grid">
+      <div class="card map-card">
+        <div class="card-head">
+          <h2>10-node topology</h2>
+          <span class="hint">Click a link or router to fail or restore it during a run</span>
+        </div>
+        <div id="map"></div>
+        <div class="map-legend">
+          <span class="legend-title">Link utilization</span>
+          <span class="ramp"></span><span class="ramp-labels"><span>0%</span><span>100%</span></span>
+          <span class="legend-item"><span class="key key-route"></span>Selected route</span>
+          <span class="legend-item"><span class="key key-spf"></span>Dijkstra route</span>
+          <span class="legend-item"><span class="key key-fail"></span>✕ Failed</span>
+        </div>
+      </div>
+
+      <aside class="side">
+        <div class="card">
+          <h2>Run</h2>
+          <div class="form-grid">
+            <label>Simulator<select id="run-backend"></select></label>
+            <label>Policy<select id="run-policy">
+              <option value="dqn">DQN agent</option>
+              <option value="dijkstra">Dijkstra (OSPF-style)</option>
+            </select></label>
+            <label>Scenario<select id="run-scenario"></select></label>
+            <label>Seed<input id="run-seed" type="number" value="1" min="0"></label>
+            <label>Speed<select id="run-speed">
+              <option value="2">2 steps/s</option>
+              <option value="5">5 steps/s</option>
+              <option value="10" selected>10 steps/s (real time)</option>
+              <option value="20">20 steps/s</option>
+              <option value="50">50 steps/s</option>
+            </select></label>
+            <label>Traffic <output id="run-scale-value">–</output>
+              <input id="run-scale" type="range" min="0" max="2" step="0.1" value="1" disabled>
+            </label>
+          </div>
+          <div class="buttons">
+            <button id="run-start" class="primary">Start</button>
+            <button id="run-pause" disabled>Pause</button>
+            <button id="run-stop" disabled>Stop</button>
+          </div>
+          <div id="run-progress" class="progress"><span></span></div>
+          <p id="run-state" class="state-note"></p>
+        </div>
+
+        <div class="card">
+          <h2>Route inspector</h2>
+          <div class="form-grid">
+            <label>From<select id="route-src"></select></label>
+            <label>To<select id="route-dst"></select></label>
+          </div>
+          <p class="route-line"><span class="route-label">Active</span> <span id="route-active">–</span></p>
+          <p class="route-line"><span class="route-label">Dijkstra</span> <span id="route-spf">–</span></p>
+          <table class="data compact">
+            <caption id="fib-caption">Next hop towards node 9</caption>
+            <thead><tr><th>Router</th><th>Active</th><th>Dijkstra</th></tr></thead>
+            <tbody id="fib-body"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h2>Safety and events</h2>
+          <dl class="counters">
+            <div><dt>Loops broken</dt><dd id="guard-loops">0</dd></div>
+            <div><dt>Invalid hops fixed</dt><dd id="guard-invalid">0</dd></div>
+          </dl>
+          <ol id="event-log" class="event-log"></ol>
+        </div>
+      </aside>
+
+      <div class="tiles">
+        <div class="tile"><span class="tile-label">Packet delivery ratio</span><strong id="tile-pdr">–</strong></div>
+        <div class="tile"><span class="tile-label">End-to-end latency</span><strong id="tile-latency">–</strong></div>
+        <div class="tile"><span class="tile-label">Throughput</span><strong id="tile-throughput">–</strong></div>
+        <div class="tile"><span class="tile-label">Jitter</span><strong id="tile-jitter">–</strong></div>
+        <div class="tile"><span class="tile-label">Reward (latest step)</span><strong id="tile-reward">–</strong></div>
+      </div>
+
+      <div class="charts">
+        <div class="card chart-card"><div id="chart-pdr"></div></div>
+        <div class="card chart-card"><div id="chart-latency"></div></div>
+        <div class="card chart-card"><div id="chart-throughput"></div></div>
+        <div class="card chart-card"><div id="chart-jitter"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-train" class="view">
+    <div class="stack">
+      <div class="card">
+        <h2>Train the DQN agent</h2>
+        <p class="hint">Saves the best model on held-out seeds to checkpoints/dqn.pt, replacing the current one.</p>
+        <div class="form-row">
+          <label>Simulator<select id="train-backend"></select></label>
+          <label>Episodes<input id="train-episodes" type="number" value="120" min="1" max="5000"></label>
+          <label>Seed<input id="train-seed" type="number" value="0" min="0"></label>
+          <div class="buttons">
+            <button id="train-start" class="primary">Start training</button>
+            <button id="train-stop" disabled>Stop</button>
+          </div>
+        </div>
+        <div id="train-progress" class="progress"><span></span></div>
+        <p id="train-state" class="state-note"></p>
+      </div>
+      <div class="charts two">
+        <div class="card chart-card"><div id="chart-train-reward"></div></div>
+        <div class="card chart-card"><div id="chart-train-pdr"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-bench" class="view">
+    <div class="stack">
+      <div class="card">
+        <h2>DQN against Dijkstra</h2>
+        <p class="hint">Both policies run the same scenarios and seeds.</p>
+        <div class="form-row">
+          <label>Simulator<select id="bench-backend"></select></label>
+          <label>Seeds<input id="bench-seeds" type="number" value="5" min="1" max="100"></label>
+          <div class="buttons">
+            <button id="bench-start" class="primary">Run benchmark</button>
+            <button id="bench-stop" disabled>Stop</button>
+          </div>
+        </div>
+        <div id="bench-progress" class="progress"><span></span></div>
+        <p id="bench-note" class="state-note"></p>
+      </div>
+      <div class="legend" id="bench-legend" hidden>
+        <span class="legend-item"><span class="swatch s1"></span>Dijkstra</span>
+        <span class="legend-item"><span class="swatch s2"></span>DQN</span>
+        <span class="hint">Bars show the mean; whiskers show ±1 standard deviation.</span>
+      </div>
+      <div class="charts two" id="bench-charts"></div>
+      <div class="card" id="bench-table-card" hidden>
+        <h2>Results table</h2>
+        <div class="table-scroll">
+          <table class="data">
+            <thead><tr><th>Scenario</th><th>Policy</th><th>Runs</th><th>PDR %</th><th>Latency ms</th><th>Throughput Mbps</th><th>Jitter ms</th><th>Reward</th></tr></thead>
+            <tbody id="bench-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="tooltip" class="tooltip" hidden></div>
+<div id="toast" class="toast" role="alert" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
