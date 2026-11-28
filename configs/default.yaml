@@ -1,0 +1,119 @@
+# Single source of truth for the topology, traffic and hyper-parameters.
+# Python passes the topology and flows to the ns-3 scenario on its command line,
+# so both simulation backends always run the same network.
+
+topology:
+  # x/y are canvas coordinates used only by the GUI.
+  nodes:
+    - {id: 0, x: 60,  y: 300}
+    - {id: 1, x: 230, y: 110}
+    - {id: 2, x: 230, y: 490}
+    - {id: 3, x: 300, y: 300}
+    - {id: 4, x: 500, y: 80}
+    - {id: 5, x: 500, y: 300}
+    - {id: 6, x: 500, y: 520}
+    - {id: 7, x: 700, y: 300}
+    - {id: 8, x: 790, y: 110}
+    - {id: 9, x: 790, y: 490}
+  # [u, v, bandwidth_mbps, propagation_delay_ms]
+  # The 20 Mbps core (0-3-5-7) is the cheapest route, so shortest-path routing
+  # funnels traffic into it even when the 10 Mbps outer paths are idle.
+  links:
+    - [0, 1, 10, 4]
+    - [0, 2, 10, 4]
+    - [0, 3, 20, 2]
+    - [1, 3, 10, 2]
+    - [2, 3, 10, 2]
+    - [1, 4, 10, 4]
+    - [2, 6, 10, 4]
+    - [3, 5, 20, 2]
+    - [4, 5, 10, 2]
+    - [5, 6, 10, 2]
+    - [5, 7, 20, 2]
+    - [4, 8, 10, 4]
+    - [6, 9, 10, 4]
+    - [7, 8, 10, 2]
+    - [7, 9, 10, 2]
+    - [8, 9, 10, 3]
+  # OSPF-style cost: max(1, round(reference / bandwidth)). 20 Mbps -> 1, 10 Mbps -> 2.
+  ospf_reference_mbps: 20
+
+sim:
+  step_s: 0.1                 # decision interval
+  episode_steps: 300          # 30 simulated seconds
+  packet_bytes: 1000
+  queue_packets: 100          # DropTail capacity per interface
+  # Failures reach every policy, Dijkstra and DQN alike, after this many steps.
+  link_state_delay_steps: 5
+
+traffic:
+  # [src, dst, peak_mbps, mean_on_s, mean_off_s] - exponential On-Off sources
+  flows:
+    - [0, 7, 6, 0.6, 0.4]
+    - [0, 8, 5, 0.6, 0.4]
+    - [0, 9, 5, 0.6, 0.4]
+    - [1, 7, 5, 0.8, 0.5]
+    - [1, 9, 4, 0.4, 0.3]
+    - [2, 7, 5, 0.8, 0.5]
+    - [2, 8, 4, 0.4, 0.3]
+    - [3, 7, 4, 1.0, 0.6]
+    - [9, 0, 4, 0.6, 0.4]
+    - [8, 1, 3, 0.6, 0.4]
+    - [7, 2, 4, 0.6, 0.4]
+    - [4, 6, 2, 0.5, 0.5]
+
+# Events are [time_s, action, target]. Actions: link_down, link_up, node_down,
+# node_up (target = link or node id) and scale (target = traffic multiplier).
+scenarios:
+  light:
+    scale: 0.4
+    events: []
+  bursty:
+    scale: 0.8
+    events:
+      - [8, scale, 1.3]
+      - [12, scale, 0.8]
+      - [20, scale, 1.4]
+      - [24, scale, 0.8]
+  link_failure:
+    scale: 0.8
+    events:
+      - [10, link_down, 7]   # core link 3-5
+      - [20, link_up, 7]
+  node_failure:
+    scale: 0.8
+    events:
+      - [10, node_down, 5]   # core router
+      - [20, node_up, 5]
+  moderate:
+    scale: 0.65
+    events:
+      - [8, scale, 1.0]
+      - [12, scale, 0.65]
+      - [20, scale, 1.1]
+      - [24, scale, 0.65]
+reward:
+  # Reward = -(alpha*Delay + beta*PacketLoss + gamma*QueueOccupancy) + delta*Delivered
+  alpha: 1.0
+  beta: 2.0
+  gamma: 1.0
+  delta: 0.5
+  delay_scale_ms: 50.0
+
+guard:
+  cold_start_steps: 20        # use Dijkstra for the first 2 simulated seconds
+
+agent:
+  hidden: [256, 256]
+  lr: 0.0005
+  discount: 0.95
+  batch_size: 256
+  updates_per_step: 1
+  target_tau: 0.01
+  replay_steps: 8000
+  warmup_steps: 300
+  epsilon_start: 0.3
+  epsilon_end: 0.01
+  epsilon_decay_episodes: 40
+  switch_margin: 0.02         # keep the current next hop unless clearly beaten
+  train_scenarios: [bursty, link_failure, node_failure, light]
